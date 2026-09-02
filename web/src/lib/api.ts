@@ -50,8 +50,13 @@ export const api = {
   getStatus: () => fetchJSON<StatusResponse>("/api/status"),
   getSessions: (limit = 20, offset = 0) =>
     fetchJSON<PaginatedSessions>(`/api/sessions?limit=${limit}&offset=${offset}`),
-  getSessionMessages: (id: string) =>
-    fetchJSON<SessionMessagesResponse>(`/api/sessions/${encodeURIComponent(id)}/messages`),
+  getSessionMessages: async (id: string) => {
+    const headers = await _authHeaders();
+    return fetchJSON<SessionMessagesResponse>(
+      `/api/sessions/${encodeURIComponent(id)}/messages`,
+      { headers },
+    );
+  },
   deleteSession: async (id: string) =>
     fetchJSON<{ ok: boolean }>(`/api/sessions/${encodeURIComponent(id)}`, {
       method: "DELETE",
@@ -66,7 +71,7 @@ export const api = {
     return fetchJSON<LogsResponse>(`/api/logs?${qs.toString()}`);
   },
   getAnalytics: (days: number) =>
-    fetchJSON<AnalyticsResponse>(`/api/analytics/usage?days=${days}`),
+    fetchJSON<AnalyticsResponse>(`/api/analytics?days=${days}`),
   getConfig: () => fetchJSON<Record<string, unknown>>("/api/config"),
   getDefaults: () => fetchJSON<Record<string, unknown>>("/api/config/defaults"),
   getSchema: () => fetchJSON<{ fields: Record<string, unknown>; category_order: string[] }>("/api/config/schema"),
@@ -197,6 +202,26 @@ export const api = {
 
   // Chat (streaming handled by ChatPage directly via fetch)
   getModelInfo: () => fetchJSON<ModelInfo>("/api/model-info"),
+  getModels: (providers?: string) => {
+    const qs = providers ? `?providers=${encodeURIComponent(providers)}` : "";
+    return fetchJSON<{
+      groups: Record<string, string[]>;
+      all_groups: Record<string, string[]>;
+      current: string;
+      providers: { id: string; label: string; icon: string; description: string; enabled: boolean }[];
+      selected_providers: string[];
+    }>(`/api/models${qs}`);
+  },
+  getProviders: () => fetchJSON<{
+    providers: { id: string; label: string; icon: string; description: string; enabled: boolean }[];
+    current_provider: string;
+  }>("/api/providers"),
+  setModel: async (model: string) =>
+    fetchJSON<{ ok: boolean; model: string }>("/api/model", {
+      method: "POST",
+      headers: await _authHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ model }),
+    }),
   executeCommand: async (body: { command: string; args: string }) =>
     fetchJSON<{ output: string; command: string; session_id: string }>("/api/command", {
       method: "POST",
@@ -231,7 +256,7 @@ export const api = {
   // Streaming chat via gateway /v1/chat/completions
   streamChat: async function* (
     messages: { role: string; content: string }[],
-    opts?: { sessionId?: string; onSessionId?: (id: string) => void },
+    opts?: { sessionId?: string; onSessionId?: (id: string) => void; model?: string },
   ): AsyncGenerator<string> {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
@@ -249,11 +274,19 @@ export const api = {
       headers["X-Hermes-Session-Id"] = opts.sessionId;
     }
 
+    // Pick the active model: explicit arg → localStorage → default
+    const activeModel =
+      opts?.model ||
+      (() => {
+        try { return localStorage.getItem("hermes-model") || ""; } catch { return ""; }
+      })() ||
+      "hermes-agent";
+
     const res = await fetch("/v1/chat/completions", {
       method: "POST",
       headers,
       body: JSON.stringify({
-        model: "hermes-agent",
+        model: activeModel,
         messages,
         stream: true,
       }),
@@ -363,6 +396,7 @@ export interface EnvVarInfo {
   is_password: boolean;
   tools: string[];
   advanced: boolean;
+  default?: string;
 }
 
 export interface SessionMessage {

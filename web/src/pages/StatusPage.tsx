@@ -5,12 +5,14 @@ import {
   Clock,
   Cpu,
   Database,
+  HardDrive,
+  MemoryStick,
   Radio,
   Wifi,
   WifiOff,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import type { PlatformStatus, SessionInfo, StatusResponse } from "@/lib/api";
+import type { PlatformStatus, SessionInfo, StatusResponse, SystemHealth } from "@/lib/api";
 import { timeAgo, isoTimeAgo } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -42,18 +44,42 @@ function gatewayBadge(status: StatusResponse) {
     : { badge: "outline" as const, label: "Off" };
 }
 
+function formatUptime(seconds: number): string {
+  if (!seconds || seconds < 0) return "—";
+  const d = Math.floor(seconds / 86400);
+  const h = Math.floor((seconds % 86400) / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  if (d > 0) return d + "d " + h + "h " + m + "m";
+  if (h > 0) return h + "h " + m + "m " + s + "s";
+  if (m > 0) return m + "m " + s + "s";
+  return s + "s";
+}
+
+function formatBytes(gb: number): string {
+  if (gb >= 1024) return (gb / 1024).toFixed(1) + " TB";
+  return gb.toFixed(1) + " GB";
+}
+
 export default function StatusPage() {
   const [status, setStatus] = useState<StatusResponse | null>(null);
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
+  const [health, setHealth] = useState<SystemHealth | null>(null);
+  const [now, setNow] = useState<Date>(new Date());
 
   useEffect(() => {
     const load = () => {
       api.getStatus().then(setStatus).catch(() => {});
       api.getSessions(50).then((resp) => setSessions(resp.sessions)).catch(() => {});
+      api.getSystemHealth().then(setHealth).catch(() => {});
     };
     load();
-    const interval = setInterval(load, 5000);
-    return () => clearInterval(interval);
+    const fastInterval = setInterval(load, 3000);
+    const clockInterval = setInterval(() => setNow(new Date()), 1000);
+    return () => {
+      clearInterval(fastInterval);
+      clearInterval(clockInterval);
+    };
   }, []);
 
   if (!status) {
@@ -66,11 +92,20 @@ export default function StatusPage() {
 
   const gwBadge = gatewayBadge(status);
 
+  const dateStr = now.toLocaleDateString("id-ID", {
+    weekday: "long", day: "numeric", month: "long", year: "numeric",
+    timeZone: "Asia/Jakarta",
+  });
+  const timeStr = now.toLocaleTimeString("id-ID", {
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
+    timeZone: "Asia/Jakarta",
+  });
+
   const items = [
     {
       icon: Cpu,
       label: "Agent",
-      value: `v${status.version}`,
+      value: "v" + status.version,
       badgeText: "Live",
       badgeVariant: "success" as const,
     },
@@ -84,7 +119,7 @@ export default function StatusPage() {
     {
       icon: Activity,
       label: "Active Sessions",
-      value: status.active_sessions > 0 ? `${status.active_sessions} running` : "None",
+      value: status.active_sessions > 0 ? status.active_sessions + " running" : "None",
       badgeText: status.active_sessions > 0 ? "Live" : "Off",
       badgeVariant: (status.active_sessions > 0 ? "success" : "outline") as "success" | "outline",
     },
@@ -94,7 +129,6 @@ export default function StatusPage() {
   const activeSessions = sessions.filter((s) => s.is_active);
   const recentSessions = sessions.filter((s) => !s.is_active).slice(0, 5);
 
-  // Collect alerts that need attention
   const alerts: { message: string; detail?: string }[] = [];
   if (status.gateway_state === "startup_failed") {
     alerts.push({
@@ -105,15 +139,21 @@ export default function StatusPage() {
   const failedPlatforms = platforms.filter(([, info]) => info.state === "fatal" || info.state === "disconnected");
   for (const [name, info] of failedPlatforms) {
     alerts.push({
-      message: `${name.charAt(0).toUpperCase() + name.slice(1)} ${info.state === "fatal" ? "error" : "disconnected"}`,
+      message: name.charAt(0).toUpperCase() + name.slice(1) + " " + (info.state === "fatal" ? "error" : "disconnected"),
       detail: info.error_message ?? undefined,
     });
   }
 
+  const sessionAge = (s: SessionInfo): string => {
+    if (s.is_active) {
+      const elapsed = Math.floor(now.getTime() / 1000 - s.started_at);
+      return formatUptime(elapsed);
+    }
+    return timeAgo(s.last_active);
+  };
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Alert banner — breaks grid monotony for critical states */}
       {alerts.length > 0 && (
         <div className="border border-destructive/30 bg-destructive/[0.06] p-4">
           <div className="flex items-start gap-3">
@@ -133,16 +173,147 @@ export default function StatusPage() {
       )}
 
       <div className="grid gap-4 sm:grid-cols-3">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Tanggal &amp; Waktu</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold font-display tabular-nums">{timeStr}</div>
+            <p className="text-xs text-muted-foreground mt-1">WIB (Asia/Jakarta)</p>
+            <p className="text-xs text-muted-foreground/80 mt-2 capitalize">{dateStr}</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">CPU</CardTitle>
+            <Cpu className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-baseline gap-1">
+              <div className="text-2xl font-bold font-display tabular-nums">
+                {health ? Math.round(health.cpu_percent) : "—"}
+              </div>
+              <span className="text-sm text-muted-foreground">%</span>
+            </div>
+            <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-muted">
+              <div
+                className={"h-full rounded-full transition-all duration-500 " + (
+                  (health?.cpu_percent ?? 0) > 80 ? "bg-destructive"
+                    : (health?.cpu_percent ?? 0) > 50 ? "bg-warning"
+                    : "bg-success"
+                )}
+                style={{ width: Math.min(100, health?.cpu_percent ?? 0) + "%" }}
+              />
+            </div>
+            {health?.load_avg && (
+              <p className="text-[0.65rem] text-muted-foreground mt-1.5 font-mono-ui">
+                load: {health.load_avg.map((n) => n.toFixed(2)).join(" / ")}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">RAM</CardTitle>
+            <MemoryStick className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-baseline gap-1">
+              <div className="text-2xl font-bold font-display tabular-nums">
+                {health ? Math.round(health.memory_percent) : "—"}
+              </div>
+              <span className="text-sm text-muted-foreground">%</span>
+            </div>
+            <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-muted">
+              <div
+                className={"h-full rounded-full transition-all duration-500 " + (
+                  (health?.memory_percent ?? 0) > 85 ? "bg-destructive"
+                    : (health?.memory_percent ?? 0) > 65 ? "bg-warning"
+                    : "bg-success"
+                )}
+                style={{ width: Math.min(100, health?.memory_percent ?? 0) + "%" }}
+              />
+            </div>
+            {health && (
+              <p className="text-[0.65rem] text-muted-foreground mt-1.5">
+                {formatBytes(health.memory_used_gb)} / {formatBytes(health.memory_total_gb)}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Lama Aktif</CardTitle>
+            <Activity className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold font-display tabular-nums">
+              {health ? formatUptime(health.uptime) : "—"}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">system uptime</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Disk</CardTitle>
+            <HardDrive className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-baseline gap-1">
+              <div className="text-2xl font-bold font-display tabular-nums">
+                {health ? Math.round(health.disk_percent) : "—"}
+              </div>
+              <span className="text-sm text-muted-foreground">%</span>
+            </div>
+            <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-muted">
+              <div
+                className={"h-full rounded-full transition-all duration-500 " + (
+                  (health?.disk_percent ?? 0) > 90 ? "bg-destructive"
+                    : (health?.disk_percent ?? 0) > 70 ? "bg-warning"
+                    : "bg-success"
+                )}
+                style={{ width: Math.min(100, health?.disk_percent ?? 0) + "%" }}
+              />
+            </div>
+            {health && (
+              <p className="text-[0.65rem] text-muted-foreground mt-1.5">
+                {formatBytes(health.disk_used_gb)} / {formatBytes(health.disk_total_gb)}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Hermes</CardTitle>
+            <Cpu className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold font-display">v{status.version}</div>
+            <p className="text-xs text-muted-foreground mt-1">config v{status.config_version}</p>
+            <p className="text-[0.65rem] text-muted-foreground/80 mt-1">
+              {status.gateway_running ? "Gateway PID " + status.gateway_pid : "Gateway off"}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-3">
         {items.map(({ icon: Icon, label, value, badgeText, badgeVariant }) => (
           <Card key={label}>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium">{label}</CardTitle>
               <Icon className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
-
             <CardContent>
               <div className="text-2xl font-bold font-display">{value}</div>
-
               {badgeText && (
                 <Badge variant={badgeVariant} className="mt-2">
                   {badgeVariant === "success" && (
@@ -156,9 +327,7 @@ export default function StatusPage() {
         ))}
       </div>
 
-      {platforms.length > 0 && (
-        <PlatformsCard platforms={platforms} />
-      )}
+      {platforms.length > 0 && <PlatformsCard platforms={platforms} />}
 
       {activeSessions.length > 0 && (
         <Card>
@@ -166,27 +335,25 @@ export default function StatusPage() {
             <div className="flex items-center gap-2">
               <Activity className="h-5 w-5 text-success" />
               <CardTitle className="text-base">Active Sessions</CardTitle>
+              <span className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">
+                <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+                Live
+              </span>
             </div>
           </CardHeader>
-
           <CardContent className="grid gap-3">
             {activeSessions.map((s) => (
-              <div
-                key={s.id}
-                className="flex items-center justify-between gap-3 border border-border p-3 overflow-hidden"
-              >
+              <div key={s.id} className="flex items-center justify-between gap-3 border border-border p-3 overflow-hidden">
                 <div className="flex flex-col gap-1 min-w-0 flex-1">
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="font-medium text-sm truncate">{s.title ?? "Untitled"}</span>
-
                     <Badge variant="success" className="text-[10px] shrink-0">
                       <span className="mr-1 inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-current" />
                       Live
                     </Badge>
                   </div>
-
                   <span className="text-xs text-muted-foreground truncate">
-                    <span className="font-mono-ui">{s.model ?? "unknown"}</span> · {s.message_count} msgs · {timeAgo(s.last_active)}
+                    <span className="font-mono-ui">{s.model ?? "unknown"}</span> · {s.message_count} msgs · aktif {sessionAge(s)}
                   </span>
                 </div>
               </div>
@@ -201,29 +368,21 @@ export default function StatusPage() {
             <div className="flex items-center gap-2">
               <Clock className="h-5 w-5 text-muted-foreground" />
               <CardTitle className="text-base">Recent Sessions</CardTitle>
+              <span className="ml-auto text-xs text-muted-foreground">auto-refresh 3s</span>
             </div>
           </CardHeader>
-
           <CardContent className="grid gap-3">
             {recentSessions.map((s) => (
-              <div
-                key={s.id}
-                className="flex items-center justify-between gap-3 border border-border p-3 overflow-hidden"
-              >
+              <div key={s.id} className="flex items-center justify-between gap-3 border border-border p-3 overflow-hidden">
                 <div className="flex flex-col gap-1 min-w-0 flex-1">
                   <span className="font-medium text-sm truncate">{s.title ?? "Untitled"}</span>
-
                   <span className="text-xs text-muted-foreground truncate">
                     <span className="font-mono-ui">{s.model ?? "unknown"}</span> · {s.message_count} msgs · {timeAgo(s.last_active)}
                   </span>
-
                   {s.preview && (
-                    <span className="text-xs text-muted-foreground/70 truncate">
-                      {s.preview}
-                    </span>
+                    <span className="text-xs text-muted-foreground/70 truncate">{s.preview}</span>
                   )}
                 </div>
-
                 <Badge variant="outline" className="text-[10px] shrink-0">
                   <Database className="mr-1 h-3 w-3" />
                   {s.source ?? "local"}
@@ -246,7 +405,6 @@ function PlatformsCard({ platforms }: PlatformsCardProps) {
           <CardTitle className="text-base">Connected Platforms</CardTitle>
         </div>
       </CardHeader>
-
       <CardContent className="grid gap-3">
         {platforms.map(([name, info]) => {
           const display = PLATFORM_STATE_BADGE[info.state] ?? {
@@ -256,34 +414,23 @@ function PlatformsCard({ platforms }: PlatformsCardProps) {
           const IconComponent = info.state === "connected" ? Wifi : info.state === "fatal" ? AlertTriangle : WifiOff;
 
           return (
-            <div
-              key={name}
-              className="flex items-center justify-between border border-border p-3"
-            >
+            <div key={name} className="flex items-center justify-between border border-border p-3">
               <div className="flex items-center gap-3">
-                <IconComponent className={`h-4 w-4 ${
-                  info.state === "connected"
-                    ? "text-success"
-                    : info.state === "fatal"
-                      ? "text-destructive"
-                      : "text-warning"
-                }`} />
-
+                <IconComponent className={"h-4 w-4 " + (
+                  info.state === "connected" ? "text-success"
+                    : info.state === "fatal" ? "text-destructive"
+                    : "text-warning"
+                )} />
                 <div className="flex flex-col gap-0.5">
                   <span className="text-sm font-medium capitalize">{name}</span>
-
                   {info.error_message && (
                     <span className="text-xs text-destructive">{info.error_message}</span>
                   )}
-
                   {info.updated_at && (
-                    <span className="text-xs text-muted-foreground">
-                      Last update: {isoTimeAgo(info.updated_at)}
-                    </span>
+                    <span className="text-xs text-muted-foreground">Last update: {isoTimeAgo(info.updated_at)}</span>
                   )}
                 </div>
               </div>
-
               <Badge variant={display.variant}>
                 {display.variant === "success" && (
                   <span className="mr-1 inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-current" />

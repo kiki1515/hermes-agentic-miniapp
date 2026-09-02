@@ -29,32 +29,55 @@ import { Label } from "@/components/ui/label";
 /*  Provider grouping                                                  */
 /* ------------------------------------------------------------------ */
 
-const PROVIDER_GROUPS: { prefix: string; name: string; priority: number }[] = [
-  { prefix: "NOUS_",            name: "Nous Portal",       priority: 0 },
-  { prefix: "ANTHROPIC_",       name: "Anthropic",         priority: 1 },
-  { prefix: "DASHSCOPE_",       name: "DashScope",         priority: 2 },
-  { prefix: "HERMES_QWEN_",    name: "DashScope",         priority: 2 },
-  { prefix: "DEEPSEEK_",        name: "DeepSeek",          priority: 3 },
-  { prefix: "GOOGLE_",          name: "Gemini",            priority: 4 },
-  { prefix: "GEMINI_",          name: "Gemini",            priority: 4 },
-  { prefix: "GLM_",             name: "GLM / Z.AI",        priority: 5 },
-  { prefix: "ZAI_",             name: "GLM / Z.AI",        priority: 5 },
-  { prefix: "Z_AI_",            name: "GLM / Z.AI",        priority: 5 },
-  { prefix: "HF_",              name: "HuggingFace",       priority: 6 },
-  { prefix: "KIMI_",            name: "Kimi",              priority: 7 },
-  { prefix: "MINIMAX_CN_",      name: "MiniMax (CN)",      priority: 9 },
-  { prefix: "MINIMAX_",         name: "MiniMax",           priority: 8 },
-  { prefix: "OPENCODE_GO_",     name: "OpenCode Go",       priority: 10 },
-  { prefix: "OPENCODE_ZEN_",    name: "OpenCode Zen",      priority: 11 },
-  { prefix: "OPENROUTER_",      name: "OpenRouter",        priority: 12 },
-  { prefix: "XIAOMI_",          name: "Xiaomi MiMo",       priority: 13 },
+const PROVIDER_GROUPS: { prefix: string; name: string; priority: number; logo?: string }[] = [
+  { prefix: "NOUS_",            name: "Nous Research",     priority: 0,  logo: "/assets/providers/nous.svg" },
+  { prefix: "ANTHROPIC_",       name: "Anthropic",         priority: 1,  logo: "/assets/providers/anthropic.svg" },
+  { prefix: "OPENAI_",          name: "OpenAI",            priority: 2,  logo: "/assets/providers/openai.svg" },
+  { prefix: "DASHSCOPE_",       name: "DashScope",         priority: 3,  logo: "" },
+  { prefix: "HERMES_QWEN_",     name: "DashScope",         priority: 3 },
+  { prefix: "DEEPSEEK_",        name: "DeepSeek",          priority: 4,  logo: "/assets/providers/deepseek.svg" },
+  { prefix: "DEEPINFRA_",       name: "DeepInfra",         priority: 5,  logo: "/assets/providers/deepinfra.svg" },
+  { prefix: "GOOGLE_",          name: "Google Gemini",     priority: 6,  logo: "/assets/providers/google.svg" },
+  { prefix: "GEMINI_",          name: "Google Gemini",     priority: 6,  logo: "/assets/providers/google.svg" },
+  { prefix: "GLM_",             name: "GLM / Z.AI",        priority: 7,  logo: "" },
+  { prefix: "ZAI_",             name: "GLM / Z.AI",        priority: 7 },
+  { prefix: "Z_AI_",            name: "GLM / Z.AI",        priority: 7 },
+  { prefix: "GROQ_",            name: "Groq",              priority: 8,  logo: "/assets/providers/groq.svg" },
+  { prefix: "HF_",              name: "HuggingFace",       priority: 9,  logo: "/assets/providers/huggingface.svg" },
+  { prefix: "KIMI_",            name: "Kimi",              priority: 10, logo: "/assets/providers/moonshot.svg" },
+  { prefix: "META_",            name: "Meta AI",           priority: 11, logo: "/assets/providers/meta.svg" },
+  { prefix: "MISTRAL_",         name: "Mistral AI",        priority: 12, logo: "/assets/providers/mistral.svg" },
+  { prefix: "MINIMAX_CN_",      name: "MiniMax (CN)",      priority: 14, logo: "/assets/providers/minimax.svg" },
+  { prefix: "MINIMAX_",         name: "MiniMax",           priority: 13, logo: "/assets/providers/minimax.svg" },
+  { prefix: "NVIDIA_",          name: "NVIDIA NIM",        priority: 15, logo: "/assets/providers/nvidia.svg" },
+  { prefix: "OLLAMA_",          name: "Ollama",            priority: 16, logo: "/assets/providers/ollama.svg" },
+  { prefix: "OPENCODE_GO_",     name: "OpenCode Go",       priority: 17, logo: "/assets/providers/opencode.svg" },
+  { prefix: "OPENCODE_ZEN_",    name: "OpenCode Zen",      priority: 18, logo: "/assets/providers/opencode.svg" },
+  { prefix: "OPENROUTER_",      name: "OpenRouter",        priority: 19, logo: "/assets/providers/openrouter.svg" },
+  { prefix: "TOKENROUTER_",     name: "TokenRouter",       priority: 20, logo: "/assets/providers/tokenrouter.png" },
+  { prefix: "XAI_",             name: "xAI (Grok)",        priority: 21, logo: "/assets/providers/xai.svg" },
+  { prefix: "XIAOMI_",          name: "Xiaomi MiMo",       priority: 22, logo: "/assets/providers/xiaomimimo.svg" },
+  { prefix: "UPSTAGE_",         name: "Upstage",           priority: 23, logo: "/assets/providers/upstage.svg" },
+  { prefix: "ARCEE_",           name: "Arcee AI",          priority: 24, logo: "/assets/providers/arcee.svg" },
+  { prefix: "STEPFUN_",         name: "StepFun",           priority: 25, logo: "/assets/providers/stepfun.svg" },
+  { prefix: "GMI_",             name: "GMI Cloud",         priority: 26, logo: "/assets/providers/gmi.svg" },
+  { prefix: "COHERE_",          name: "Cohere",            priority: 27, logo: "/assets/providers/cohere.svg" },
+  { prefix: "NOVITA_",          name: "Novita",            priority: 28, logo: "/assets/providers/novita.svg" },
+  { prefix: "FIREWORKS_",       name: "Fireworks AI",      priority: 29, logo: "/assets/providers/fireworks.svg" },
+  { prefix: "TOGETHER_",        name: "Together AI",       priority: 30, logo: "/assets/providers/together.svg" },
+  { prefix: "REPLICATE_",       name: "Replicate",         priority: 31, logo: "/assets/providers/replicate.svg" },
 ];
 
-function getProviderGroup(key: string): string {
+function getProviderGroup(key: string): { name: string; logo: string } {
+  // Strip _API_KEY or _BASE_URL suffix to get a stable prefix.
+  const normalized = key.replace(/_(API_KEY|BASE_URL|TOKEN)$/, "_");
   for (const g of PROVIDER_GROUPS) {
-    if (key.startsWith(g.prefix)) return g.name;
+    const normalizedPrefix = g.prefix.replace(/_(API_KEY|BASE_URL|TOKEN)$/, "_");
+    if (normalized.startsWith(normalizedPrefix) || key.startsWith(g.prefix)) {
+      return { name: g.name, logo: g.logo || "" };
+    }
   }
-  return "Other";
+  return { name: "Other", logo: "" };
 }
 
 function getProviderPriority(groupName: string): number {
@@ -67,6 +90,7 @@ interface ProviderGroup {
   priority: number;
   entries: [string, EnvVarInfo][];
   hasAnySet: boolean;
+  logo?: string;
 }
 
 const CATEGORY_META: Record<string, { label: string; icon: typeof KeyRound }> = {
@@ -189,7 +213,13 @@ function EnvVarRow({
           <div className={`flex items-center gap-2 border border-border px-3 py-2 font-mono text-xs min-h-[38px] ${
             isRevealed ? "bg-background text-foreground select-all" : "bg-muted/30 text-muted-foreground"
           }`}>
-            <span className="flex-1 truncate sm:whitespace-normal break-all">{info.is_set ? displayValue : "---"}</span>
+            <span className="flex-1 truncate sm:whitespace-normal break-all">
+              {info.is_set
+                ? displayValue
+                : info.default
+                  ? <span title="default (not set)">{info.default}</span>
+                  : "---"}
+            </span>
             {info.is_set && (
               <Button size="sm" variant="ghost" onClick={() => onReveal(varKey)}
                 title={isRevealed ? "Hide value" : "Show real value"}
@@ -204,7 +234,12 @@ function EnvVarRow({
           {/* Action buttons — row on desktop, stacked on very small screens */}
           <div className="flex items-center gap-2 flex-wrap">
             <Button size="sm" variant="outline"
-              onClick={() => setEdits((prev) => ({ ...prev, [varKey]: "" }))}>
+              onClick={() => setEdits((prev) => {
+                const newVal = prev[varKey] !== undefined
+                  ? prev[varKey]
+                  : (info.is_set ? "" : (info.default || ""));
+                return { ...prev, [varKey]: newVal };
+              })}>
               <Pencil className="h-3 w-3" />
               {info.is_set ? "Replace" : "Set"}
             </Button>
@@ -222,13 +257,20 @@ function EnvVarRow({
 
       {isEditing && (
         <div className="flex flex-col gap-2">
-          <Input autoFocus type="text" value={edits[varKey]}
+          <Input autoFocus type="text"
+            value={edits[varKey] !== undefined ? edits[varKey] : (info.is_set ? "" : (info.default || ""))}
             onChange={(e) => setEdits((prev) => ({ ...prev, [varKey]: e.target.value }))}
-            placeholder={info.is_set ? `Replace current value` : "Enter value..."}
+            placeholder={
+              info.is_set
+                ? `Replace current value`
+                : info.default
+                  ? info.default
+                  : "Enter value..."
+            }
             className="font-mono text-xs w-full" />
           <div className="flex items-center gap-2">
             <Button size="sm" onClick={() => onSave(varKey)}
-              disabled={saving === varKey || !edits[varKey]}>
+              disabled={saving === varKey || !(edits[varKey] || info.default || "")}>
               <Save className="h-3 w-3" />
               {saving === varKey ? "..." : "Save"}
             </Button>
@@ -286,6 +328,9 @@ function ProviderGroupCard({
       >
         <div className="flex items-center gap-2 min-w-0">
           {expanded ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
+          {group.logo ? (
+            <img src={group.logo} alt="" className="h-4 w-4 shrink-0 opacity-80" />
+          ) : null}
           <span className="font-semibold text-sm tracking-wide truncate">{group.name}</span>
           {hasAnyConfigured && (
             <Badge variant="success" className="text-[0.6rem] shrink-0">
@@ -354,7 +399,8 @@ export default function EnvPage() {
   }, []);
 
   const handleSave = async (key: string) => {
-    const value = edits[key];
+    // Use edits[key] if set; otherwise fall back to the env var's default URL.
+    let value = edits[key] || vars?.[key]?.default || "";
     if (!value) return;
     setSaving(key);
     try {
@@ -421,19 +467,20 @@ export default function EnvPage() {
       ([, info]) => info.category === "provider" && (showAdvanced || !info.advanced),
     );
 
-    const groupMap = new Map<string, [string, EnvVarInfo][]>();
+    const groupMap = new Map<string, { logo: string; entries: [string, EnvVarInfo][] }>();
     for (const entry of providerEntries) {
-      const groupName = getProviderGroup(entry[0]);
-      if (!groupMap.has(groupName)) groupMap.set(groupName, []);
-      groupMap.get(groupName)!.push(entry);
+      const group = getProviderGroup(entry[0]);
+      if (!groupMap.has(group.name)) groupMap.set(group.name, { logo: group.logo, entries: [] });
+      groupMap.get(group.name)!.entries.push(entry);
     }
 
     const groups: ProviderGroup[] = Array.from(groupMap.entries())
-      .map(([name, entries]) => ({
+      .map(([name, data]) => ({
         name,
         priority: getProviderPriority(name),
-        entries,
-        hasAnySet: entries.some(([, info]) => info.is_set),
+        entries: data.entries,
+        logo: data.logo,
+        hasAnySet: data.entries.some(([, info]) => info.is_set),
       }))
       .sort((a, b) => a.priority - b.priority);
 
@@ -494,7 +541,7 @@ export default function EnvPage() {
 
       {/* ═══════════════ LLM Providers (grouped) ═══════════════ */}
       <Card>
-        <CardHeader className="sticky top-14 z-10 bg-card border-b border-border">
+        <CardHeader className="bg-card border-b border-border">
           <div className="flex items-center gap-2 min-w-0">
             <Zap className="h-5 w-5 text-muted-foreground shrink-0" />
             <CardTitle className="text-base truncate">LLM Providers</CardTitle>
@@ -522,7 +569,7 @@ export default function EnvPage() {
 
         return (
           <Card key={category}>
-            <CardHeader className="sticky top-14 z-10 bg-card border-b border-border">
+            <CardHeader className="bg-card border-b border-border">
               <div className="flex items-center gap-2 min-w-0">
                 <Icon className="h-5 w-5 text-muted-foreground shrink-0" />
                 <CardTitle className="text-base truncate">{label}</CardTitle>

@@ -11,6 +11,11 @@ import {
   ChevronRight,
   Settings2,
   FileText,
+  User,
+  Github,
+  Linkedin,
+  Instagram,
+  ExternalLink,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { getNestedValue, setNestedValue } from "@/lib/nested";
@@ -493,6 +498,96 @@ export default function ConfigPage() {
           </div>
         </div>
       )}
+
+      {/* ═══════════════ About Section ═══════════════ */}
+      <Card className="mt-2">
+        <CardHeader className="px-3 sm:px-4 py-3">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <User className="h-4 w-4" />
+            About
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4 px-3 sm:px-4 pb-4">
+          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4">
+            <div
+              className="shrink-0 rounded-2xl p-3 border border-border/60 dark:border-white/10"
+              style={{
+                background:
+                  "linear-gradient(135deg, color-mix(in srgb, var(--c-light) 8%, transparent) 0%, color-mix(in srgb, var(--c-light) 4%, transparent) 100%)",
+                backdropFilter: "blur(8px) saturate(160%)",
+                WebkitBackdropFilter: "blur(8px) saturate(160%)",
+                boxShadow:
+                  "inset 0 0 0 0.5px color-mix(in srgb, var(--c-light) 18%, transparent), 0 1px 2px rgba(0,0,0,0.04)",
+              }}
+            >
+              <img
+                src="/assets/khrisna-logo.jpg"
+                alt="KHRISNA"
+                className="h-20 w-auto object-contain"
+                style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.06))" }}
+              />
+            </div>
+            <div className="flex-1 min-w-0 grid gap-2.5 text-sm">
+              <div className="grid gap-0.5">
+                <div className="text-[0.65rem] uppercase tracking-wider text-muted-foreground/80 font-semibold">
+                  Nama
+                </div>
+                <div className="font-medium text-foreground">Muhammad Fikri Khrisna</div>
+              </div>
+              <div className="grid sm:grid-cols-3 gap-2.5">
+                <a
+                  href="https://github.com/kiki1515"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium transition-colors hover:bg-foreground/5"
+                  style={{
+                    backgroundColor:
+                      "color-mix(in srgb, var(--c-light) 6%, transparent)",
+                    border:
+                      "0.5px solid color-mix(in srgb, var(--c-light) 14%, transparent)",
+                  }}
+                >
+                  <Github className="h-3.5 w-3.5" />
+                  <span className="truncate">github.com/kiki1515</span>
+                  <ExternalLink className="h-3 w-3 ml-auto opacity-50" />
+                </a>
+                <a
+                  href="https://instagram.com/kkhrisnaa"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium transition-colors hover:bg-foreground/5"
+                  style={{
+                    backgroundColor:
+                      "color-mix(in srgb, var(--c-light) 6%, transparent)",
+                    border:
+                      "0.5px solid color-mix(in srgb, var(--c-light) 14%, transparent)",
+                  }}
+                >
+                  <Instagram className="h-3.5 w-3.5" />
+                  <span className="truncate">@kkhrisnaa</span>
+                  <ExternalLink className="h-3 w-3 ml-auto opacity-50" />
+                </a>
+                <a
+                  href="https://www.linkedin.com/in/muhammad-fikri-khrisna-b756a51b3/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium transition-colors hover:bg-foreground/5"
+                  style={{
+                    backgroundColor:
+                      "color-mix(in srgb, var(--c-light) 6%, transparent)",
+                    border:
+                      "0.5px solid color-mix(in srgb, var(--c-light) 14%, transparent)",
+                  }}
+                >
+                  <Linkedin className="h-3.5 w-3.5" />
+                  <span className="truncate">Muhammad Fikri Khrisna</span>
+                  <ExternalLink className="h-3 w-3 ml-auto opacity-50" />
+                </a>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

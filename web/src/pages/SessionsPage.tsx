@@ -4,6 +4,7 @@ import {
   ChevronLeft,
   ChevronRight,
   MessageSquare,
+  Play,
   Search,
   Trash2,
   Clock,
@@ -173,6 +174,7 @@ function SessionRow({
   isExpanded,
   onToggle,
   onDelete,
+  onContinue,
 }: {
   session: SessionInfo;
   snippet?: string;
@@ -180,6 +182,7 @@ function SessionRow({
   isExpanded: boolean;
   onToggle: () => void;
   onDelete: () => void;
+  onContinue: () => void;
 }) {
   const [messages, setMessages] = useState<SessionMessage[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -249,6 +252,19 @@ function SessionRow({
           <Badge variant="outline" className="text-[10px]">
             {session.source ?? "local"}
           </Badge>
+          <Button
+            variant="default"
+            size="sm"
+            className="h-7 px-2.5 text-[11px] gap-1"
+            aria-label="Continue session"
+            onClick={(e) => {
+              e.stopPropagation();
+              onContinue();
+            }}
+          >
+            <Play className="h-3 w-3" />
+            Lanjutkan
+          </Button>
           <Button
             variant="ghost"
             size="icon"
@@ -349,6 +365,12 @@ export default function SessionsPage() {
     }
   };
 
+  const handleContinue = (id: string) => {
+    try { localStorage.setItem("hermes-pending-resume", id); } catch {}
+    // dispatch custom event that App.tsx listens for
+    window.dispatchEvent(new CustomEvent("hermes:continue-session", { detail: { sessionId: id } }));
+  };
+
   // Build snippet map from search results (session_id → snippet)
   const snippetMap = new Map<string, string>();
   if (searchResults) {
@@ -430,6 +452,7 @@ export default function SessionsPage() {
                   setExpandedId((prev) => (prev === s.id ? null : s.id))
                 }
                 onDelete={() => handleDelete(s.id)}
+                onContinue={() => handleContinue(s.id)}
               />
             ))}
           </div>

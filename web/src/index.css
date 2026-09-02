@@ -17,46 +17,133 @@
 @font-face { font-family: "Mondwest"; src: url("/fonts/Mondwest-Regular.woff2") format("woff2"); font-weight: 400; font-display: swap; }
 
 @theme {
-  /* ---- Hermes palette (dark teal, from live site) ---- */
-  --color-background: #041C1C;
-  --color-foreground: #ffe6cb;
-  --color-card: #062424;
-  --color-card-foreground: #ffe6cb;
-  --color-primary: #ffe6cb;
-  --color-primary-foreground: #041C1C;
-  --color-secondary: #0a2e2e;
-  --color-secondary-foreground: #ffe6cb;
-  --color-muted: #083030;
-  --color-muted-foreground: #8aaa9a;
-  --color-accent: #0c3838;
-  --color-accent-foreground: #ffe6cb;
-  --color-destructive: #fb2c36;
-  --color-destructive-foreground: #fff;
-  --color-success: #4ade80;
-  --color-warning: #ffbd38;
-  --color-border: color-mix(in srgb, #ffe6cb 15%, transparent);
-  --color-input: color-mix(in srgb, #ffe6cb 15%, transparent);
-  --color-ring: #ffe6cb;
-  --color-popover: #062424;
-  --color-popover-foreground: #ffe6cb;
+  /* ---- iOS 26 liquid glass palette (neutral, glass-first) ---- */
+  --color-background: #f2f2f7;
+  --color-foreground: #1c1c1e;
+  --color-card: rgba(255, 255, 255, 0.55);
+  --color-card-foreground: #1c1c1e;
+  --color-primary: #1c1c1e;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: rgba(255, 255, 255, 0.45);
+  --color-secondary-foreground: #1c1c1e;
+  --color-muted: rgba(120, 120, 128, 0.12);
+  --color-muted-foreground: #6b6b70;
+  --color-accent: rgba(255, 255, 255, 0.65);
+  --color-accent-foreground: #1c1c1e;
+  --color-destructive: #ff3b30;
+  --color-destructive-foreground: #ffffff;
+  --color-success: #34c759;
+  --color-warning: #ff9f0a;
+  --color-border: rgba(60, 60, 67, 0.18);
+  --color-input: rgba(255, 255, 255, 0.6);
+  --color-ring: rgba(0, 122, 255, 0.5);
+  --color-popover: rgba(255, 255, 255, 0.85);
+  --color-popover-foreground: #1c1c1e;
 
-  /* ---- Font stacks ---- */
-  --font-sans: "Mondwest", Arial, sans-serif;
-  --font-mono: "Courier Prime", "Courier New", monospace;
-  --font-display: "Mondwest", Arial, sans-serif;
-  --font-expanded: "RulesExpanded", Arial, sans-serif;
-  --font-compressed: "RulesCompressed", Arial, sans-serif;
+  /* ---- Font stacks (SF Pro substitute: Inter) ---- */
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", Menlo, monospace;
+  --font-display: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-expanded: "Inter", -apple-system, sans-serif;
+  --font-compressed: "Inter", -apple-system, sans-serif;
+}
+
+/* ---- Liquid Glass Switcher tokens (Vadim Matveev / KwpRaGr) ---- */
+:root {
+  --c-glass: #bbbbbc;
+  --c-light: #ffffff;
+  --c-dark: #000000;
+  --c-content: #222244;
+  --c-action: #0052f5;
+  --glass-reflex-dark: 1;
+  --glass-reflex-light: 1;
+  --saturation: 150%;
+}
+
+:root[data-theme="dark"], :root.dark {
+  --c-glass: #bbbbbc;
+  --c-light: #ffffff;
+  --c-dark: #000000;
+  --c-content: #e1e1e1;
+  --c-action: #03d5ff;
+  --glass-reflex-dark: 2;
+  --glass-reflex-light: 0.3;
+  --saturation: 150%;
+}
+
+/* ---- Dark mode ---- */
+:root[data-theme="dark"], :root.dark {
+  --color-background: #000000;
+  --color-foreground: #f2f2f7;
+  --color-card: rgba(28, 28, 30, 0.55);
+  --color-card-foreground: #f2f2f7;
+  --color-primary: #f2f2f7;
+  --color-primary-foreground: #000000;
+  --color-secondary: rgba(28, 28, 30, 0.45);
+  --color-secondary-foreground: #f2f2f7;
+  --color-muted: rgba(118, 118, 128, 0.24);
+  --color-muted-foreground: #98989f;
+  --color-accent: rgba(58, 58, 60, 0.6);
+  --color-accent-foreground: #f2f2f7;
+  --color-border: rgba(255, 255, 255, 0.12);
+  --color-input: rgba(28, 28, 30, 0.6);
+  --color-popover: rgba(28, 28, 30, 0.88);
+  --color-popover-foreground: #f2f2f7;
 }
 
 /* ---- Global body ---- */
+html, #root {
+  width: 100%;
+  height: 100%;
+}
 body {
   margin: 0;
-  font-family: "Mondwest", Arial, sans-serif;
-  background: var(--color-background);
+  width: 100%;
+  font-family: var(--font-sans);
   color: var(--color-foreground);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+  overflow: hidden;
+  /* subtle gradient backdrop so glass cards have something to refract */
+  background:
+    radial-gradient(ellipse at 20% 0%, rgba(0, 122, 255, 0.10) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 100%, rgba(175, 82, 222, 0.08) 0%, transparent 50%),
+    var(--color-background);
+  background-attachment: fixed;
+}
+
+:root[data-theme="dark"] body, :root.dark body {
+  background:
+    radial-gradient(ellipse at 20% 0%, rgba(10, 132, 255, 0.18) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 100%, rgba(94, 92, 230, 0.15) 0%, transparent 50%),
+    var(--color-background);
+}
+
+/* ---- Liquid glass utility ---- */
+.glass {
+  background: var(--color-card);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid var(--color-border);
+  box-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.5) inset,
+    0 -1px 0 0 rgba(0, 0, 0, 0.04) inset,
+    0 8px 24px -8px rgba(0, 0, 0, 0.12);
+}
+:root[data-theme="dark"] .glass, :root.dark .glass {
+  box-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.08) inset,
+    0 -1px 0 0 rgba(0, 0, 0, 0.3) inset,
+    0 8px 24px -8px rgba(0, 0, 0, 0.6);
+}
+
+.glass-strong {
+  background: var(--color-popover);
+  backdrop-filter: blur(40px) saturate(200%);
+  -webkit-backdrop-filter: blur(40px) saturate(200%);
+  border: 1px solid var(--color-border);
+  box-shadow: 0 12px 36px -8px rgba(0, 0, 0, 0.2);
 }
 
 /* ---- Selection ---- */
@@ -123,6 +210,11 @@ code {
 }
 
 /* ---- Page transitions ---- */
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+  100% { transform: scale(1); }
+}
 @keyframes fade-in {
   from { opacity: 0; transform: translateY(4px); }
   to   { opacity: 1; transform: translateY(0); }
