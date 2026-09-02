@@ -21,6 +21,8 @@ const MODEL_LOGO_MAP: Record<string, string> = {
   "openai/o": "/assets/providers/openai.svg",
   "google/gemini": "/assets/providers/google.svg",
   "google/gemma": "/assets/providers/google.svg",
+  "gemini-": "/assets/providers/google.svg",
+  "models/gemini-": "/assets/providers/google.svg",
   "meta-llama": "/assets/providers/meta.svg",
   "meta/": "/assets/providers/meta.svg",
   "huggingface/": "/assets/providers/huggingface.svg",
