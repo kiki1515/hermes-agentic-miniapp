@@ -24,6 +24,7 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from urllib.request import Request as _UrlRequest, urlopen as _urlopen
 
 import yaml
 
@@ -135,6 +136,7 @@ _CORS_ORIGINS = [
     "http://127.0.0.1:9119",
     "https://web.telegram.org",
     "https://app.rpclaw.net",
+    "https://*.trycloudflare.com",
 ]
 
 app.add_middleware(
@@ -560,9 +562,88 @@ async def get_session_token(request: Request):
 @app.get("/api/env")
 async def get_env_vars():
     env_on_disk = load_env()
+    # Map of known _BASE_URL vars → their official default URL.
+    # Frontend uses this as placeholder / prefill when adding/editing a key.
+    _BASE_URL_DEFAULTS = {
+        "OPENAI_BASE_URL": "https://api.openai.com/v1",
+        "ANTHROPIC_BASE_URL": "https://api.anthropic.com",
+        "GOOGLE_BASE_URL": "https://generativelanguage.googleapis.com/v1beta",
+        "OPENROUTER_BASE_URL": "https://openrouter.ai/api/v1",
+        "NOUS_BASE_URL": "https://inference-api.nousresearch.com/v1",
+        "TOKENROUTER_BASE_URL": "https://api.tokenrouter.com/v1",
+        "OPENCODE_GO_BASE_URL": "https://opencode.ai/zen/go/v1",
+        "OPENCODE_ZEN_BASE_URL": "https://opencode.ai/zen/v1",
+        "GROQ_BASE_URL": "https://api.groq.com/openai/v1",
+        "MISTRAL_BASE_URL": "https://api.mistral.ai/v1",
+        "DEEPSEEK_BASE_URL": "https://api.deepseek.com/v1",
+        "GEMINI_BASE_URL": "https://generativelanguage.googleapis.com/v1beta",
+        "XAI_BASE_URL": "https://api.x.ai/v1",
+        "ZAI_BASE_URL": "https://api.z.ai/v1",
+        "KIMI_BASE_URL": "https://api.moonshot.ai/v1",
+        "ALIBABA_CODING_PLAN_BASE_URL": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        "COMMANDCODE_BASE_URL": "https://api.commandcode.ai/v1",
+        "COMMANDCODE_ANTHROPIC_BASE_URL": "https://api.commandcode.ai/v1",
+        "DASHSCOPE_BASE_URL": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        "DEEPINFRA_BASE_URL": "https://api.deepinfra.com/v1/openai",
+        "HF_BASE_URL": "https://router.huggingface.co/v1",
+        "META_BASE_URL": "https://api.meta.ai/v1",
+        "MINIMAX_BASE_URL": "https://api.minimax.chat/v1",
+        "MINIMAX_CN_BASE_URL": "https://api.minimaxi.com/v1",
+        "NOVITA_BASE_URL": "https://api.novita.ai/v1/openai",
+        "OLLAMA_BASE_URL": "https://ollama.com/v1",
+        "UPSTAGE_BASE_URL": "https://api.upstage.ai/v1",
+        "XIAOMI_BASE_URL": "https://api.xiaomimimo.com/v1",
+        "ARCEE_BASE_URL": "https://api.arcee.ai/v1",
+        "GLM_BASE_URL": "https://api.z.ai/v1",
+        "GMI_BASE_URL": "https://api.gmi.io/v1",
+        "LM_BASE_URL": "http://localhost:1234/v1",
+        "NVIDIA_BASE_URL": "https://integrate.api.nvidia.com/v1",
+        "STEPFUN_BASE_URL": "https://api.stepfun.ai/v1",
+        "ACTUAL_BASE_URL": "http://127.0.0.1:8080/v1",
+        "AZURE_FOUNDRY_BASE_URL": "https://<resource>.services.ai.azure.com/models",
+        "RETAINDB_BASE_URL": "https://api.retaindb.com/v1",
+        "HONCHO_BASE_URL": "https://api.honcho.dev/v1",
+        "HERMES_LANGFUSE_BASE_URL": "https://cloud.langfuse.com",
+        "CUSTOM_BASE_URL": "",
+    }
+    # Inject _API_KEY vars for major LLM providers so the user can manage them
+    # in the Keys UI. (Only the ones not already in OPTIONAL_ENV_VARS.)
+    _EXTRA_API_KEY_DEFAULTS = {
+        "OPENAI_API_KEY": ("OpenAI", "OpenAI API key", "https://platform.openai.com/api-keys"),
+        "ANTHROPIC_API_KEY": ("Anthropic", "Anthropic API key", "https://console.anthropic.com/settings/keys"),
+        "OPENROUTER_API_KEY": ("OpenRouter", "OpenRouter API key", "https://openrouter.ai/keys"),
+        "TOKENROUTER_API_KEY": ("TokenRouter", "TokenRouter API key (300+ models via tokenrouter.com)", "https://www.tokenrouter.com/"),
+        "GROQ_API_KEY": ("Groq", "Groq API key", "https://console.groq.com/keys"),
+        "MISTRAL_API_KEY": ("Mistral AI", "Mistral AI API key", "https://console.mistral.ai/api-keys"),
+        "XAI_API_KEY": ("xAI (Grok)", "xAI API key", "https://console.x.ai/"),
+        "META_API_KEY": ("Meta AI", "Meta AI API key", "https://meta.ai/"),
+        "COHERE_API_KEY": ("Cohere", "Cohere API key", "https://dashboard.cohere.com/api-keys"),
+        "DEEPSEEK_API_KEY": ("DeepSeek", "DeepSeek API key", "https://platform.deepseek.com/api_keys"),
+        "FIREWORKS_API_KEY": ("Fireworks AI", "Fireworks API key", "https://fireworks.ai/account/api-keys"),
+        "TOGETHER_API_KEY": ("Together AI", "Together API key", "https://api.together.xyz/settings/api-keys"),
+        "REPLICATE_API_KEY": ("Replicate", "Replicate API key", "https://replicate.com/account/api-tokens"),
+        "GEMINI_API_KEY": ("Google Gemini", "Google Gemini API key", "https://aistudio.google.com/apikey"),
+        "GOOGLE_API_KEY": ("Google Gemini", "Google Gemini API key (alias)", "https://aistudio.google.com/apikey"),
+        "KIMI_API_KEY": ("Kimi", "Kimi / Moonshot API key", "https://platform.moonshot.ai/console/api-key"),
+        "MINIMAX_API_KEY": ("MiniMax", "MiniMax API key", "https://platform.minimax.io/"),
+        "MINIMAX_CN_API_KEY": ("MiniMax (CN)", "MiniMax (China) API key", "https://platform.minimaxi.com/"),
+        "NVIDIA_API_KEY": ("NVIDIA NIM", "NVIDIA NIM API key", "https://build.nvidia.com/explore/discover"),
+        "NOVITA_API_KEY": ("Novita", "Novita API key", "https://novita.ai/settings/key-management"),
+        "DEEPINFRA_API_KEY": ("DeepInfra", "DeepInfra API key", "https://deepinfra.com/dash/api_keys"),
+        "UPSTAGE_API_KEY": ("Upstage", "Upstage API key", "https://console.upstage.ai/"),
+        "XIAOMI_API_KEY": ("Xiaomi MiMo", "Xiaomi MiMo API key", "https://api.xiaomimimo.com/"),
+        "ARCEE_API_KEY": ("Arcee AI", "Arcee AI API key", "https://app.arcee.ai/account"),
+        "STEPFUN_API_KEY": ("StepFun", "StepFun API key", "https://platform.stepfun.ai/"),
+        "GMI_API_KEY": ("GMI Cloud", "GMI Cloud API key", "https://api.gmi.io/"),
+        "OLLAMA_API_KEY": ("Ollama", "Ollama Cloud API key (default: empty if self-hosted)", "https://ollama.com/"),
+        "HF_TOKEN": ("HuggingFace", "HuggingFace API token", "https://huggingface.co/settings/tokens"),
+        "CUSTOM_API_KEY": ("Custom Endpoint", "API key for your custom OpenAI-compatible endpoint", "https://platform.openai.com/api-keys"),
+    }
     result = {}
+    # 1. Standard OPTIONAL_ENV_VARS (provider keys + niche options)
     for var_name, info in OPTIONAL_ENV_VARS.items():
         value = env_on_disk.get(var_name)
+        default = _BASE_URL_DEFAULTS.get(var_name) or info.get("default") or ""
         result[var_name] = {
             "is_set": bool(value),
             "redacted_value": redact_key(value) if value else None,
@@ -572,6 +653,43 @@ async def get_env_vars():
             "is_password": info.get("password", False),
             "tools": info.get("tools", []),
             "advanced": info.get("advanced", False),
+            "default": default,
+        }
+    # 2. Inject every known _BASE_URL var (even ones not in _EXTRA_ENV_KEYS)
+    for var_name, default in _BASE_URL_DEFAULTS.items():
+        if var_name in result:
+            continue
+        value = env_on_disk.get(var_name)
+        provider = var_name.removesuffix("_BASE_URL").lower()
+        result[var_name] = {
+            "is_set": bool(value),
+            "redacted_value": redact_key(value) if value else None,
+            "description": f"{provider.upper()} API base URL override",
+            "url": None,
+            "category": "provider",
+            "is_password": False,
+            "tools": [],
+            "advanced": False,
+            "default": default,
+        }
+    # 3. Inject major _API_KEY vars so user can manage them in the Keys UI.
+    # These are NOT in OPTIONAL_ENV_VARS by default (Hermes uses env-specific
+    # config), so we expose them as a UI affordance only — the user can paste
+    # their key and we save it to .env via the same /api/env PUT endpoint.
+    for var_name, (provider_label, desc, url) in _EXTRA_API_KEY_DEFAULTS.items():
+        if var_name in result:
+            continue
+        value = env_on_disk.get(var_name)
+        result[var_name] = {
+            "is_set": bool(value),
+            "redacted_value": redact_key(value) if value else None,
+            "description": desc,
+            "url": url,
+            "category": "provider",
+            "is_password": True,
+            "tools": [],
+            "advanced": False,
+            "default": "",
         }
     return result
 
@@ -1532,7 +1650,7 @@ async def get_session_detail(session_id: str):
 
 
 @app.get("/api/sessions/{session_id}/messages")
-async def get_session_messages(session_id: str):
+async def get_session_messages(session_id: str, _: None = Depends(_require_auth)):
     from hermes_state import SessionDB
     db = SessionDB()
     try:
@@ -1801,6 +1919,145 @@ async def update_config_raw(body: RawConfigUpdate, _: None = Depends(_require_au
 # ---------------------------------------------------------------------------
 # Token / cost analytics endpoint
 # ---------------------------------------------------------------------------
+
+
+@app.get("/api/analytics")
+async def get_analytics_overview(days: int = 7, _: None = Depends(_require_auth)):
+    """Aggregated analytics for the dashboard — realtime summary."""
+    from hermes_state import SessionDB
+    db = SessionDB()
+    now = time.time()
+    cutoff = now - (days * 86400)
+    result = {
+        "range_days": days,
+        "total_sessions": 0,
+        "total_messages": 0,
+        "models_used": [],
+        "by_day": [],            # [{date, count, sessions, tokens_in, tokens_out}]
+        "by_model": [],          # [{model, sessions, tokens_in, tokens_out, share}]
+        "by_provider": [],       # [{provider, sessions, share}]
+        "by_status": {"active": 0, "paused": 0, "ended": 0},
+        "recent": [],            # [{id, title, model, started_at, last_active, messages, source}]
+        "top_models": [],        # top 5 most-used models
+        "heatmap": [],           # [{date, count}] last 365 days
+    }
+    try:
+        # Totals
+        cur = db._conn.execute("""
+            SELECT COUNT(*) as sessions,
+                   COALESCE(SUM(message_count), 0) as messages,
+                   COALESCE(SUM(input_tokens), 0) as total_in,
+                   COALESCE(SUM(output_tokens), 0) as total_out
+            FROM sessions WHERE started_at > ?
+        """, (cutoff,))
+        row = cur.fetchone()
+        result["total_sessions"] = row["sessions"] or 0
+        result["total_messages"] = row["messages"] or 0
+        result["total_tokens_in"] = row["total_in"] or 0
+        result["total_tokens_out"] = row["total_out"] or 0
+
+        # By day — last `days` days
+        cur = db._conn.execute("""
+            SELECT date(started_at, 'unixepoch') as day,
+                   COUNT(*) as sessions,
+                   COALESCE(SUM(message_count), 0) as messages,
+                   COALESCE(SUM(input_tokens), 0) as tokens_in,
+                   COALESCE(SUM(output_tokens), 0) as tokens_out
+            FROM sessions
+            WHERE started_at > ?
+            GROUP BY day
+            ORDER BY day
+        """, (cutoff,))
+        result["by_day"] = [dict(r) for r in cur.fetchall()]
+
+        # By model
+        cur = db._conn.execute("""
+            SELECT model,
+                   COUNT(*) as sessions,
+                   COALESCE(SUM(message_count), 0) as messages,
+                   COALESCE(SUM(input_tokens), 0) as tokens_in,
+                   COALESCE(SUM(output_tokens), 0) as tokens_out
+            FROM sessions
+            WHERE started_at > ? AND model IS NOT NULL AND model != ''
+            GROUP BY model
+            ORDER BY messages DESC
+            LIMIT 20
+        """, (cutoff,))
+        rows = [dict(r) for r in cur.fetchall()]
+        total_msgs = sum(r["messages"] for r in rows) or 1
+        for r in rows:
+            r["share"] = round(r["messages"] / total_msgs, 4)
+        result["by_model"] = rows
+        result["top_models"] = rows[:5]
+        result["models_used"] = [r["model"] for r in rows]
+
+        # By provider (extract from model prefix)
+        provider_buckets: dict[str, int] = {}
+        for r in rows:
+            m = (r.get("model") or "").lower()
+            if "openrouter" in m or "/" in m and not m.startswith("opencode"):
+                prov = "OpenRouter"
+            elif "nous" in m or m in ("tencent/hy3:free", "meituan/longcat-2.0:free"):
+                prov = "Nous"
+            elif "opencode" in m:
+                prov = "OpenCode"
+            elif "tokenrouter" in m:
+                prov = "TokenRouter"
+            else:
+                prov = "Other"
+            provider_buckets[prov] = provider_buckets.get(prov, 0) + r["messages"]
+        total_prov = sum(provider_buckets.values()) or 1
+        result["by_provider"] = [
+            {"provider": p, "sessions": s, "share": round(s / total_prov, 4)}
+            for p, s in sorted(provider_buckets.items(), key=lambda x: -x[1])
+        ]
+
+        # Status — active/ended (active = ended_at IS NULL AND last_active < 5 min)
+        cur = db._conn.execute("""
+            SELECT
+                SUM(CASE WHEN ended_at IS NULL THEN 1 ELSE 0 END) as active,
+                SUM(CASE WHEN ended_at IS NOT NULL THEN 1 ELSE 0 END) as ended
+            FROM sessions
+        """)
+        row = cur.fetchone()
+        result["by_status"]["active"] = row["active"] or 0
+        result["by_status"]["ended"] = row["ended"] or 0
+        result["by_status"]["paused"] = 0
+
+        # Recent activity — last 10 sessions
+        cur = db._conn.execute("""
+            SELECT id, title, model, source, started_at, ended_at, message_count, last_activity_at
+            FROM sessions
+            ORDER BY COALESCE(last_activity_at, started_at) DESC
+            LIMIT 10
+        """)
+        recent = []
+        for r in cur.fetchall():
+            d = dict(r)
+            last = d.get("last_activity_at") or d.get("started_at") or 0
+            d["last_active"] = last
+            d["messages"] = d.get("message_count") or 0
+            recent.append(d)
+        result["recent"] = recent
+
+        # Heatmap — last 365 days
+        year_cutoff = now - (365 * 86400)
+        cur = db._conn.execute("""
+            SELECT date(started_at, 'unixepoch') as day,
+                   COALESCE(SUM(message_count), 0) as count
+            FROM sessions
+            WHERE started_at > ?
+            GROUP BY day
+        """, (year_cutoff,))
+        result["heatmap"] = [dict(r) for r in cur.fetchall()]
+    except Exception as e:
+        result["error"] = str(e)
+    finally:
+        try:
+            db.close()
+        except Exception:
+            pass
+    return result
 
 
 @app.get("/api/analytics/usage")
@@ -2197,6 +2454,394 @@ async def get_model_info():
         "provider": provider,
         "context_length": context_length,
     }
+
+
+# ---------------------------------------------------------------------------
+# Model switcher — groups models by provider for the mini-app picker.
+# Sources (in priority order):
+#   1. OpenRouter live catalog (cached 24h) — keyed by API key in .env
+#   2. Nous free-tier cache (offline fallback)
+#   3. Config current model
+# ---------------------------------------------------------------------------
+
+def _read_openrouter_catalog() -> list[str]:
+    """Return list of OpenRouter model IDs from cache, refreshing if stale."""
+    cache_path = os.path.expanduser("~/.hermes/cache/openrouter_models_cache.json")
+    if not os.path.exists(cache_path):
+        return []
+    try:
+        if (time.time() - os.path.getmtime(cache_path)) > 86400:
+            return []  # stale — caller may refresh
+        with open(cache_path) as _f:
+            data = json.load(_f)
+        return [m.get("id") for m in data.get("data", []) if m.get("id")]
+    except Exception:
+        return []
+
+
+# Curated model lists for each provider (sourced from hermes_cli/setup.py,
+# hermes_cli/models.py, and Nous portal cache).
+_OPENCODE_FREE_MODELS = [
+    "x-preview-f-free",
+    "hy3-free",
+    "laguna-s-2.1-free",
+    "nemotron-3-ultra-free",
+    "nemotron-3.5-lightning-free",
+    "muse-spark-1.2-contributor-free",
+]
+
+_OPENCODE_GO_MODELS = [
+    "kimi-k3",
+    "kimi-k2.7-code",
+    "kimi-k2.6",
+    "gpt-5.6-luna",
+    "grok-4.5",
+    "glm-5.3",
+    "glm-5.3-flash",
+    "glm-5.2",
+    "mimo-v2.5-pro",
+    "mimo-v2.5",
+    "minimax-m3",
+    "minimax-m2.7",
+    "qwen3.8-max",
+    "qwen3.7-max",
+    "deepseek-v4-pro",
+    "hy3",
+]
+
+
+def _provider_meta() -> list[dict]:
+    """Return static metadata for all providers the mini-app picker knows about."""
+    or_key = bool(_env_key("OPENROUTER_API_KEY"))
+    oc_key = bool(_env_key("OPENCODE_ZEN_API_KEY") or _env_key("OPENCODE_GO_API_KEY"))
+    tr_key = bool(_env_key("TOKENROUTER_API_KEY"))
+    # Auto-detect other enabled providers from .env
+    other_providers = [
+        ("nous",         "Nous Research",     "🜨", "/assets/providers/nous.svg",         "https://inference-api.nousresearch.com/v1",  "NOUS_API_KEY"),
+        ("opencode-free", "OpenCode Free",     "🆓", "/assets/providers/opencode.svg",     "",                                              "OPENCODE_ZEN_API_KEY"),
+        ("opencode-go",  "OpenCode Go",       "⚡", "/assets/providers/opencode.svg",      "",                                              "OPENCODE_GO_API_KEY"),
+        ("openrouter",   "OpenRouter",        "🌐", "/assets/providers/openrouter.svg",    "https://openrouter.ai/api/v1",                 "OPENROUTER_API_KEY"),
+        ("tokenrouter",  "TokenRouter",       "🔀", "/assets/providers/tokenrouter.png",   "https://api.tokenrouter.com/v1",                "TOKENROUTER_API_KEY"),
+        ("openai",       "OpenAI",            "🟢", "/assets/providers/openai.svg",        "https://api.openai.com/v1",                     "OPENAI_API_KEY"),
+        ("anthropic",    "Anthropic",         "🅰", "/assets/providers/anthropic.svg",     "https://api.anthropic.com",                    "ANTHROPIC_API_KEY"),
+        ("google",       "Google Gemini",     "✨", "/assets/providers/google.svg",        "https://generativelanguage.googleapis.com/v1beta", "GEMINI_API_KEY"),
+        ("deepseek",     "DeepSeek",          "🐋", "/assets/providers/deepseek.svg",      "https://api.deepseek.com/v1",                   "DEEPSEEK_API_KEY"),
+        ("groq",         "Groq",              "⚡", "/assets/providers/groq.svg",          "https://api.groq.com/openai/v1",                "GROQ_API_KEY"),
+        ("mistral",      "Mistral AI",        "🌀", "/assets/providers/mistral.svg",       "https://api.mistral.ai/v1",                     "MISTRAL_API_KEY"),
+        ("xai",          "xAI (Grok)",        "𝕏",  "/assets/providers/xai.svg",           "https://api.x.ai/v1",                            "XAI_API_KEY"),
+        ("cohere",       "Cohere",            "🅒", "/assets/providers/cohere.svg",        "",                                              "COHERE_API_KEY"),
+        ("meta",         "Meta AI",           "M",  "/assets/providers/meta.svg",         "https://api.meta.ai/v1",                        "META_API_KEY"),
+        ("huggingface", "HuggingFace",       "🤗", "/assets/providers/huggingface.svg",   "https://router.huggingface.co/v1",              "HF_TOKEN"),
+        ("kimi",         "Kimi",              "🌙", "/assets/providers/moonshot.svg",      "https://api.moonshot.ai/v1",                     "KIMI_API_KEY"),
+        ("nvidia",       "NVIDIA NIM",        "🟢", "/assets/providers/nvidia.svg",        "https://integrate.api.nvidia.com/v1",           "NVIDIA_API_KEY"),
+        ("custom",       "Custom Endpoint",   "🛠", "/assets/providers/openrouter.svg",     "",                                              "CUSTOM_API_KEY"),
+    ]
+    out: list[dict] = []
+    for pid, label, icon, logo, default_url, key_var in other_providers:
+        # Nous is always enabled (it has a free cache and works without an API key).
+        if pid == "nous":
+            enabled = True
+        else:
+            _v = _env_key(key_var)
+            enabled = bool(_v) and _v not in (None, "")
+        out.append({
+            "id": pid,
+            "label": label,
+            "icon": icon,
+            "description": f"{label} ({default_url.split('//')[1].split('/')[0] if default_url else 'self-hosted'})",
+            "enabled": enabled,
+            "logo": logo,
+            "default_base_url": default_url,
+        })
+    return out
+
+
+def _env_key(name: str) -> str:
+    try:
+        from hermes_cli.config import get_env_value
+        return get_env_value(name) or ""
+    except Exception:
+        return os.environ.get(name, "")
+
+
+def _group_models_by_provider(model_ids: list[str]) -> dict[str, list[str]]:
+    out: dict[str, list[str]] = {}
+    for mid in model_ids:
+        prov = mid.split("/", 1)[0] if "/" in mid else "other"
+        out.setdefault(prov, []).append(mid)
+    # sort each provider's list
+    for k in out:
+        out[k] = sorted(set(out[k]))
+    return dict(sorted(out.items(), key=lambda kv: -len(kv[1])))
+
+
+@app.get("/api/providers")
+async def list_providers(_: None = Depends(_require_auth)):
+    """Return provider catalog with enable/disable status for the picker."""
+    return {
+        "providers": _provider_meta(),
+        "current_provider": _detect_current_provider(),
+    }
+
+
+def _detect_current_provider() -> str:
+    """Guess the active provider from current model + config providers block."""
+    try:
+        config = load_config()
+        model = config.get("model", "")
+        if isinstance(model, dict):
+            model = model.get("default", "")
+        if not model:
+            return ""
+        # check explicit provider in model dict
+        if isinstance(config.get("model"), dict):
+            p = config["model"].get("provider")
+            if p:
+                return p
+        # check providers config block
+        providers = config.get("providers") or {}
+        for p, cfg in providers.items():
+            if isinstance(cfg, dict) and cfg.get("enabled"):
+                # very rough — first enabled provider wins
+                return p
+        # guess from model name
+        if "/" in model:
+            prov = model.split("/", 1)[0]
+            if prov in ("openrouter", "nous", "zai", "kimi", "anthropic", "openai"):
+                return prov
+            return "openrouter" if any(model.startswith(p + "/") for p in ["anthropic", "openai", "google", "meta", "qwen", "deepseek", "minimax", "mistralai", "cohere", "x-ai", "nvidia", "ibm"]) else prov
+    except Exception:
+        pass
+    return ""
+
+
+@app.get("/api/models")
+async def list_models(
+    request: Request,
+    _: None = Depends(_require_auth),
+):
+    """Return models grouped by provider for the mini-app picker.
+
+    Query params:
+        providers: comma-separated list of provider ids to include
+                   (e.g. "nous,openrouter"). Default = all enabled.
+    """
+    # parse ?providers= filter
+    raw = request.query_params.get("providers", "")
+    requested = [p.strip() for p in raw.split(",") if p.strip()] if raw else []
+
+    provider_meta = _provider_meta()
+    enabled_ids = {p["id"] for p in provider_meta if p["enabled"]}
+    if requested:
+        # honor user's selection but warn on disabled
+        selected = [p for p in requested if p in {pm["id"] for pm in provider_meta}]
+    else:
+        selected = list(enabled_ids)
+
+    # 1. OpenRouter catalog
+    or_models = _read_openrouter_catalog()
+    or_enabled = bool(_env_key("OPENROUTER_API_KEY"))
+    if or_enabled and not or_models and "openrouter" in selected:
+        try:
+            _key = _env_key("OPENROUTER_API_KEY")
+            if _key:
+                import urllib.request
+                req = urllib.request.Request(
+                    "https://openrouter.ai/api/v1/models",
+                    headers={"Authorization": f"Bearer {_key}"},
+                )
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    raw_resp = json.loads(resp.read())
+                _cache_path = os.path.expanduser("~/.hermes/cache/openrouter_models_cache.json")
+                os.makedirs(os.path.dirname(_cache_path), exist_ok=True)
+                with open(_cache_path, "w") as _f:
+                    json.dump(raw_resp, _f)
+                or_models = [m.get("id") for m in raw_resp.get("data", []) if m.get("id")]
+        except Exception:
+            pass
+
+    # 2. Nous free-tier cache
+    nous_models: list[str] = []
+    try:
+        _nc_path = os.path.expanduser("~/.hermes/cache/nous_recommended_cache.json")
+        if os.path.exists(_nc_path):
+            with open(_nc_path) as _f:
+                _nc = json.load(_f)
+            _portal = _nc.get("https://portal.nousresearch.com", {}).get("data", {})
+            for _key in ("freeRecommendedModels", "paidRecommendedModels"):
+                for _m in _portal.get(_key, []) or []:
+                    _name = _m.get("modelName") or _m.get("name") or _m.get("id")
+                    if _name:
+                        nous_models.append(_name)
+    except Exception:
+        pass
+
+    # 2.5 TokenRouter live catalog (fetched from API when key is configured)
+    tr_models: list[str] = []
+    _tr_key = _env_key("TOKENROUTER_API_KEY")
+    import sys
+    print(f"[DEBUG] TOKENROUTER_API_KEY loaded: {bool(_tr_key)} (len={len(_tr_key) if _tr_key else 0})", file=sys.stderr, flush=True)
+    if _tr_key:
+        tr_cache = os.path.expanduser("~/.hermes/cache/tokenrouter_models_cache.json")
+        try:
+            cache_age = (time.time() - os.path.getmtime(tr_cache)) if os.path.exists(tr_cache) else 999
+            if not os.path.exists(tr_cache) or cache_age > 86400:
+                req = _UrlRequest(
+                    "https://api.tokenrouter.com/v1/models",
+                    headers={"Authorization": f"Bearer {_tr_key}"},
+                )
+                with _urlopen(req, timeout=10) as resp:
+                    raw = json.loads(resp.read())
+                os.makedirs(os.path.dirname(tr_cache), exist_ok=True)
+                with open(tr_cache, "w") as _f:
+                    json.dump(raw, _f)
+                tr_models = [m.get("id") for m in raw.get("data", []) if m.get("id")]
+                print(f"[DEBUG] TokenRouter fetched {len(tr_models)} models", file=sys.stderr, flush=True)
+            else:
+                with open(tr_cache) as _f:
+                    raw = json.load(_f)
+                tr_models = [m.get("id") for m in raw.get("data", []) if m.get("id")]
+                print(f"[DEBUG] TokenRouter cache hit: {len(tr_models)} models (age={int(cache_age)}s)", file=sys.stderr, flush=True)
+        except Exception as e:
+            print(f"[DEBUG] TokenRouter fetch failed: {e}", file=sys.stderr, flush=True)
+            if os.path.exists(tr_cache):
+                try:
+                    with open(tr_cache) as _f:
+                        raw = json.load(_f)
+                    tr_models = [m.get("id") for m in raw.get("data", []) if m.get("id")]
+                except Exception:
+                    pass
+
+    # 3. OpenCode (curated)
+    oc_free = list(_OPENCODE_FREE_MODELS)
+    oc_go = list(_OPENCODE_GO_MODELS)
+
+    # 4. current model
+    config = load_config()
+    current = config.get("model", "")
+    if isinstance(current, dict):
+        current = current.get("default", "")
+
+    # Build groups keyed by provider id (not model prefix)
+    groups: dict[str, list[str]] = {}
+
+    def _add(provider_id: str, models: list[str], prefix: str = ""):
+        if not models:
+            return
+        prefixed = [f"{prefix}{m}" if prefix and not m.startswith(prefix) else m for m in models]
+        groups.setdefault(provider_id, [])
+        for m in prefixed:
+            if m not in groups[provider_id]:
+                groups[provider_id].append(m)
+        groups[provider_id] = sorted(groups[provider_id])
+
+    # Always build ALL groups (so the UI can show counts for every provider).
+    if nous_models:
+        _add("nous", nous_models)
+    if oc_free:
+        _add("opencode-free", oc_free)
+    if oc_go:
+        _add("opencode-go", oc_go)
+    if or_enabled and or_models:
+        _add("openrouter", or_models, prefix="openrouter/")
+    if tr_models:
+        _add("tokenrouter", tr_models, prefix="tokenrouter/")
+
+    # Gemini models (OpenAI-compatible via Google AI Studio)
+    if _env_key("GEMINI_API_KEY"):
+        gemini_models = [
+            "gemini-3.8-flash",
+            "gemini-3.7-flash",
+            "gemini-3.6-flash",
+            "gemini-3.5-flash",
+            "gemini-3.5-flash-lite",
+            "gemini-2.5-flash",
+            "gemini-2.5-flash-lite",
+        ]
+        _add("google", gemini_models)
+
+    # Custom user-defined endpoint
+    if _env_key("CUSTOM_API_KEY") and _env_key("CUSTOM_BASE_URL"):
+        custom_model = _env_key("CUSTOM_MODEL") or "custom-model"
+        _add("custom", [custom_model])
+
+    # Subset: only the groups the caller asked for (selected) — used for the
+    # model list display.
+    visible_groups: dict[str, list[str]] = {
+        pid: ms for pid, ms in groups.items() if pid in selected
+    }
+
+    # ensure current model present in the visible list (not the full one).
+    if current:
+        target = "other"
+        for pid, ms in visible_groups.items():
+            for m in ms:
+                m_norm = m[len("openrouter/"):] if m.startswith("openrouter/") else m
+                c_norm = current[len("openrouter/"):] if current.startswith("openrouter/") else current
+                if m_norm == c_norm or m == current:
+                    target = pid
+                    break
+            if target != "other":
+                break
+        visible_groups.setdefault(target, [])
+        if current not in visible_groups[target]:
+            visible_groups[target].insert(0, current)
+        else:
+            visible_groups[target] = [current] + [m for m in visible_groups[target] if m != current]
+
+    return {
+        "groups": visible_groups,        # what to show in the list
+        "all_groups": groups,            # every provider's full catalog (for counts)
+        "current": current,
+        "providers": provider_meta,
+        "selected_providers": selected,
+    }
+
+
+class ModelSwitchBody(BaseModel):
+    model: str
+
+
+@app.post("/api/model")
+async def switch_model(body: ModelSwitchBody, _: None = Depends(_require_auth)):
+    """Switch the active default model via config.
+
+    Writes config["model"] as a dict {default, provider} so the gateway can
+    route to the correct provider (openrouter, nous, opencode, etc.).
+    """
+    try:
+        config = load_config()
+        model = body.model
+        provider = ""
+        # strip our internal "openrouter/" picker prefix
+        if model.startswith("openrouter/"):
+            provider = "openrouter"
+            model = model[len("openrouter/"):]
+        elif model.startswith("nous/"):
+            provider = "nous"
+            model = model[len("nous/"):]
+        elif model.startswith("opencode-free/") or model.startswith("opencode-go/"):
+            provider = "opencode"
+            # keep model as-is (e.g. "hy3-free")
+        elif model.startswith("tokenrouter/"):
+            provider = "tokenrouter"
+            model = model[len("tokenrouter/"):]
+        # ensure provider enabled
+        if provider:
+            providers = config.get("providers") or {}
+            prov_cfg = providers.get(provider) or {}
+            if not isinstance(prov_cfg, dict):
+                prov_cfg = {}
+            prov_cfg["enabled"] = True
+            providers[provider] = prov_cfg
+            config["providers"] = providers
+        # store as dict so gateway knows which provider to use
+        config["model"] = {"default": model, "provider": provider or "auto"}
+        save_config(config)
+        return {"ok": True, "model": body.model}
+    except Exception as e:
+        _log.exception("POST /api/model failed")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ---------------------------------------------------------------------------
